@@ -1,5 +1,171 @@
 import type { EntryRow } from './types'
 
+// 交接班种子时间锚定「当前时刻」：办结的历史记录带着冻结结论，办理中的记录随现在时间滚动。
+function seedDateTime(daysOffset: number, hour: number, minute: number): string {
+  const date = new Date()
+  date.setDate(date.getDate() + daysOffset)
+  date.setHours(hour, minute, 0, 0)
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(
+    date.getHours(),
+  )}:${pad(date.getMinutes())}`
+}
+
+function boundaryToday(hour: number): Date {
+  const date = new Date()
+  date.setHours(hour, 0, 0, 0)
+  return date
+}
+
+function buildShiftSeed(): EntryRow[] {
+  // 刚办完交班的排班下班点（08:00 是夜班下班、20:00 是白班下班）。
+  const lastEnd = [boundaryToday(8), boundaryToday(20)].filter((d) => d.getTime() <= Date.now())
+  const lastBoundary = lastEnd.length
+    ? lastEnd.reduce((a, b) => (a.getTime() > b.getTime() ? a : b))
+    : new Date(Date.now() - 12 * 3600_000)
+  // 下一次交班点。
+  const nextEnd = [boundaryToday(8), boundaryToday(20)].filter((d) => d.getTime() > Date.now())
+  const nextBoundary = nextEnd.length
+    ? nextEnd.reduce((a, b) => (a.getTime() < b.getTime() ? a : b))
+    : new Date(Date.now() + 8 * 3600_000)
+  const liveCrew = lastBoundary.getHours() === 8
+    ? { crew: '乙班', slot: '夜班', outgoing: '孙夜值', incoming: '李晨曦' }
+    : { crew: '甲班', slot: '白班', outgoing: '赵守岗', incoming: '钱接岗' }
+  const nextCrew = nextBoundary.getHours() === 8
+    ? { crew: '乙班', slot: '夜班', outgoing: '孙夜值', incoming: '李晨曦' }
+    : { crew: '甲班', slot: '白班', outgoing: '赵守岗', incoming: '钱接岗' }
+  const iso = (d: Date) => seedDateTime(0, d.getHours(), d.getMinutes())
+
+  return [
+    {
+      id: 1,
+      status: '已交接',
+      pending: false,
+      abnormal: false,
+      交接编号: 'SHIF-0001',
+      值班班组: '甲班',
+      班次: '白班',
+      交班人员: '赵守岗',
+      接班人员: '钱接岗',
+      交接事项: '机组运行平稳，垃圾池液位正常，按时完成交接',
+      交接时间: seedDateTime(-1, 20, 0),
+      完成时间: seedDateTime(-1, 20, 6),
+      交接截止时刻: seedDateTime(-1, 20, 15),
+      超时结论: '准时',
+      超时分钟: '',
+      办理用时分钟: 6,
+      结论判定时间: seedDateTime(-1, 20, 6),
+      结论已冻结: true,
+      交接状态: '已交接',
+    },
+    {
+      id: 2,
+      status: '已交接',
+      pending: false,
+      abnormal: true,
+      交接编号: 'SHIF-0002',
+      值班班组: '乙班',
+      班次: '夜班',
+      交班人员: '孙夜值',
+      接班人员: '李晨曦',
+      交接事项: '2号炉给料卡顿处理后交接，接班确认偏晚',
+      交接时间: seedDateTime(-1, 8, 0),
+      完成时间: seedDateTime(-1, 8, 33),
+      交接截止时刻: seedDateTime(-1, 8, 15),
+      超时结论: '超时',
+      超时分钟: 18,
+      办理用时分钟: 33,
+      结论判定时间: seedDateTime(-1, 8, 33),
+      结论已冻结: true,
+      交接状态: '已交接',
+    },
+    {
+      id: 3,
+      status: '有遗留',
+      pending: false,
+      abnormal: true,
+      交接编号: 'SHIF-0003',
+      值班班组: '丁班',
+      班次: '夜班',
+      交班人员: '郑海涛',
+      接班人员: '王晓明',
+      交接事项: '遗留：飞灰螯合剂库存不足，已报白班跟进采购',
+      交接时间: seedDateTime(-2, 8, 0),
+      完成时间: seedDateTime(-2, 8, 46),
+      交接截止时刻: seedDateTime(-2, 8, 15),
+      超时结论: '超时',
+      超时分钟: 31,
+      办理用时分钟: 46,
+      结论判定时间: seedDateTime(-2, 8, 46),
+      结论已冻结: true,
+      交接状态: '有遗留',
+    },
+    {
+      id: 4,
+      status: '交接中',
+      pending: true,
+      abnormal: false,
+      交接编号: 'SHIF-0004',
+      值班班组: liveCrew.crew,
+      班次: liveCrew.slot,
+      交班人员: liveCrew.outgoing,
+      接班人员: liveCrew.incoming,
+      交接事项: '正在核对运行日志与现场设备状态',
+      交接时间: iso(lastBoundary),
+      完成时间: '',
+      交接截止时刻: '',
+      超时结论: '',
+      超时分钟: '',
+      办理用时分钟: '',
+      结论判定时间: '',
+      结论已冻结: false,
+      交接状态: '交接中',
+    },
+    {
+      id: 5,
+      status: '待交接',
+      pending: true,
+      abnormal: false,
+      交接编号: 'SHIF-0005',
+      值班班组: nextCrew.crew,
+      班次: nextCrew.slot,
+      交班人员: nextCrew.outgoing,
+      接班人员: nextCrew.incoming,
+      交接事项: '计划中的下一班交接',
+      交接时间: iso(nextBoundary),
+      完成时间: '',
+      交接截止时刻: '',
+      超时结论: '',
+      超时分钟: '',
+      办理用时分钟: '',
+      结论判定时间: '',
+      结论已冻结: false,
+      交接状态: '待交接',
+    },
+    {
+      id: 6,
+      status: '交接中',
+      pending: true,
+      abnormal: false,
+      交接编号: 'SHIF-0006',
+      值班班组: '外协组',
+      班次: '白班',
+      交班人员: '外协代班',
+      接班人员: '外协接班',
+      交接事项: '外协人员临时顶班，花名册查无排班',
+      交接时间: seedDateTime(-1, 10, 0),
+      完成时间: '',
+      交接截止时刻: '',
+      超时结论: '',
+      超时分钟: '',
+      办理用时分钟: '',
+      结论判定时间: '',
+      结论已冻结: false,
+      交接状态: '交接中',
+    },
+  ]
+}
+
 // 示例数据：首次打开时播种，之后浏览器里的改动优先，重置才会回到这份。
 export const SEED_ROWS: Record<string, EntryRow[]> = {
   "weighbridge": [
@@ -662,50 +828,7 @@ export const SEED_ROWS: Record<string, EntryRow[]> = {
       "监控状态": "环保指标监控样例3"
     }
   ],
-  "shift": [
-    {
-      "id": 1,
-      "status": "待交接",
-      "pending": true,
-      "abnormal": false,
-      "交接编号": "SHIF-0001",
-      "值班班组": "值班交接班样例1",
-      "班次": "值班交接班样例1",
-      "交班人员": "值班交接班样例1",
-      "接班人员": "值班交接班样例1",
-      "交接事项": "值班交接班样例1",
-      "交接时间": "2026-09-01",
-      "交接状态": "值班交接班样例1"
-    },
-    {
-      "id": 2,
-      "status": "交接中",
-      "pending": true,
-      "abnormal": true,
-      "交接编号": "SHIF-0002",
-      "值班班组": "值班交接班样例2",
-      "班次": "值班交接班样例2",
-      "交班人员": "值班交接班样例2",
-      "接班人员": "值班交接班样例2",
-      "交接事项": "值班交接班样例2",
-      "交接时间": "2026-09-02",
-      "交接状态": "值班交接班样例2"
-    },
-    {
-      "id": 3,
-      "status": "已交接",
-      "pending": false,
-      "abnormal": false,
-      "交接编号": "SHIF-0003",
-      "值班班组": "值班交接班样例3",
-      "班次": "值班交接班样例3",
-      "交班人员": "值班交接班样例3",
-      "接班人员": "值班交接班样例3",
-      "交接事项": "值班交接班样例3",
-      "交接时间": "2026-09-03",
-      "交接状态": "值班交接班样例3"
-    }
-  ],
+  "shift": buildShiftSeed(),
   "safetyplan": [
     {
       "id": 1,
