@@ -14,6 +14,7 @@
 ├── frontend/                 Vue 3 + Vite + TypeScript 前端（唯一运行单元）
 │   ├── src/views/            每个业务模块一个页面
 │   ├── src/api/local-service.ts   本地数据服务：列表、筛选、动作流转、导出
+│   ├── src/domain/shift/     值班交接班领域：排班 + 交班台账 + 共用超时算法
 │   ├── src/data/             模块元数据 / 示例数据 / localStorage 持久化
 │   ├── src/stores/           会话与筛选状态
 │   └── vite.config.ts        dev server 配置（open: false，无 /api 代理）
@@ -69,3 +70,23 @@ npm run build
   `frontend/src/data/seed.ts`。
 - 状态流转只允许在 `local-service.ts` 里改，页面组件不做业务判断。
 - 想回到初始数据：清掉浏览器里 `waste-to-energy-plant:entries` 这一项，或调用 `resetModule(模块)`。
+
+## 值班交接班：超时口径收拢
+
+交接班不走通用模块表，独立成领域（`frontend/src/domain/shift/`）。交接班列表（`views/shift`）、
+值班看板（`views/shiftboard`）、运营概览（`views/Dashboard.vue`）三处只允许调用同一份服务，
+不再各算各的：
+
+- **人员与班组唯一来源**：排班表（`schedule.ts`，四值两运转：白班 08:00–20:00、夜班 20:00–次日 08:00）。
+  台账只存排班键（`YYYY-MM-DD#班次`），值班班组、值长、交班人员、接班人员一律凭键从排班解析。
+- **唯一超时算法**（`timeout.ts`）：时限 = 计划交接时刻 + 15 分钟宽限；实际办结时刻晚于时限即超时。
+  旧的三套口径（按交接时间推 / 按交班人员排班推 / 跟交接状态走）已全部删除。
+- **办结冻结、不回头重算**：超时结论在「确认交接 / 登记遗留」办结瞬间生成并回写交班台账
+  （独立存储键 `waste-to-energy-plant:shift-handover-ledger`）。此后看板刷新、概览统计、
+  遗留事项补登都只回放冻结结论；历史已办结记录按当时的高低留着。
+- **遗留事项不再重复计超时**：「有遗留」只是办结的一种结果，逐条记录统计只算一次。
+- **提交幂等**：交接编号是业务唯一键，同一张交接单重复提交只记一次；对已办结单重复确认/登记遗留
+  直接返回既有结论，不新增记录、不改写办结时刻、不重算超时。
+
+领域规则的可执行验证：`cd frontend && npm run verify:shift`（12 项断言，覆盖三处口径一致、
+冻结不重算、幂等提交、实时超时判定等）。

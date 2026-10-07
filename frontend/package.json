@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "vue-tsc --noEmit"
+    "typecheck": "vue-tsc --noEmit",
+    "verify:shift": "tsc scripts/verify-entry.ts --outDir scripts/.build --module commonjs --target es2020 --moduleResolution node --skipLibCheck --esModuleInterop && node -e \"require('fs').writeFileSync('scripts/.build/package.json','{\\\"type\\\":\\\"commonjs\\\"}')\" && node scripts/verify-shift.cjs"
   },
   "dependencies": {
     "pinia": "^2.1.7",

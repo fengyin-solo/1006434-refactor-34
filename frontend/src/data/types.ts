@@ -35,4 +35,13 @@ export type ActionResult = {
 export type OverviewResult = {
   cards: { label: string; value: number }[]
   modules: { name: string; created: number; pending: number; abnormal: number }[]
+  // 交接班指标来自收拢后的共用实现，和交接班列表、值班看板是同一份结果。
+  handover: {
+    total: number
+    pending: number
+    completed: number
+    withLeftover: number
+    overdue: number
+    onTime: number
+  }
 }
